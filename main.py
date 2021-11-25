@@ -4,18 +4,14 @@ import sys
 from datetime import datetime
 import config
 
-
 headers = {'X-API-KEY': config.API_KEY}
 
-# Connect to MySQL server
 try:
     db_connection = connect(user=config.USER, password=config.PASSWORD, host=config.HOST, port=config.PORT, database=config.DATABASE, auth_plugin='mysql_native_password')
-    #db_connection = connect(user='user', password='password', host='192.168.0.13', port='3306', database='mydb')
     cursor = db_connection.cursor()
 except Error as e:
     print('ERROR: ' + str(e))
     sys.exit(0)
-
 
 def insert_to_db(api_name, jsongroup_name, db_name):
     # show_table_query = "TRUNCATE " + db_name
@@ -25,22 +21,15 @@ def insert_to_db(api_name, jsongroup_name, db_name):
     cursor.execute(show_table_query)
     result = cursor.fetchall()
     db_fields = ""
-    formatted_string_for_update_template = ""
-    i = 1
     for row in result:
         db_fields = db_fields + row[0] + ","
-        i += 1
-        formatted_string_for_update_template = formatted_string_for_update_template + row[0] + "='{" + str(
-            i - 3) + "}',"
-
     db_fields = db_fields[0:len(db_fields) - 1]
     print('\n' + db_name + ': '  + db_fields)
     list_fields = db_fields.split(',')
 
-
     req = requests.get(config.URL + api_name, headers=headers)
 
-    if jsongroup_name == '':
+    if jsongroup_name == '': #Specially for Streams
         totalLineCount = len(req.json())
         limit = 100
     else:
@@ -48,6 +37,7 @@ def insert_to_db(api_name, jsongroup_name, db_name):
         limit = req.json()['limit']
 
     print('totalLineCount=' + str(totalLineCount) + ' limit=' + str(limit))
+
     current_offset = 0
 
     while current_offset < totalLineCount:
@@ -63,6 +53,7 @@ def insert_to_db(api_name, jsongroup_name, db_name):
 
         inserted = 0
         updated = 0
+
         for item in pure_json_data:
 
             cursor.execute("SELECT COUNT(*) FROM " + db_name + " WHERE id={0}".format(item['id']))
@@ -73,6 +64,7 @@ def insert_to_db(api_name, jsongroup_name, db_name):
                 for item_list_fields in list_fields:
                     data = data + "'" + str(item[item_list_fields]).replace("'","|") + "',"
                 data = data[0:len(data) - 1]
+
                 #print(data)
                 insert_clients_query = "INSERT INTO " + db_name + " ({0}) VALUES ({1})".format(db_fields, data)
 
@@ -105,8 +97,8 @@ def insert_to_db(api_name, jsongroup_name, db_name):
 
                 updated += 1
 
-            # else:
-            #     print('ERROR: key field id=' + str(item['id']) + ' is not unique')
+            else:
+                print('ERROR: key field id=' + str(item['id']) + ' is not unique')
 
         print('offset=' + str(current_offset) + ': ' + str(updated) + ' updated records; ' + str(inserted) + ' inserted records')
 
